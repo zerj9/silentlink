@@ -1,0 +1,16 @@
+
+name: silentlink
+services:
+  geodatabase:
+    image: apache/age:release_PG16_1.5.0
+    container_name: graphdb
+    platform: linux/amd64
+    volumes:
+      - ./local/postgresql/data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      POSTGRES_DB: silentlink
+      POSTGRES_USER: silentlink
+      POSTGRES_PASSWORD: passwd666
+    ports:
+      - "5436:5432"
