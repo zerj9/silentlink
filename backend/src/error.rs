@@ -18,6 +18,8 @@ struct ErrorResponse {
 pub enum ApiError {
     #[error("Database error: {0}")]
     Database(#[from] SqlxError),
+    #[error("Internal server error")]
+    InternalServerError,
     //#[error("Not found")]
     //NotFound,
     #[error("Invalid request: {0}")]
@@ -58,8 +60,8 @@ impl axum::response::IntoResponse for ApiError {
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                     ErrorResponse {
-                        code: "DATABASE_ERROR".into(),
-                        message: "A database error occurred".into(),
+                        code: "INTERNAL_SERVER_ERROR".into(),
+                        message: "An internal server error occurred".into(),
                         details: None, // Don't expose internal error details
                     },
                 )
@@ -72,20 +74,34 @@ impl axum::response::IntoResponse for ApiError {
                     details: None,
                 },
             ),
-            ApiError::Serialization(ref e) => (
+            ApiError::Serialization(ref e) => {
+                error!("Failed to serialize data: {}", e);
+                (
+                    axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                    ErrorResponse {
+                        code: "SERIALIZATION_ERROR".into(),
+                        message: "Failed to process data".into(),
+                        details: None,
+                    },
+                )
+            }
+            ApiError::Validation(ref e) => {
+                error!("Validation error: {}", e);
+                (
+                    axum::http::StatusCode::BAD_REQUEST,
+                    ErrorResponse {
+                        code: "VALIDATION_ERROR".into(),
+                        message: "Invalid input data".into(),
+                        details: Some(e.to_string()),
+                    },
+                )
+            }
+            ApiError::InternalServerError => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
                 ErrorResponse {
-                    code: "SERIALIZATION_ERROR".into(),
-                    message: "Failed to process data".into(),
-                    details: Some(e.to_string()),
-                },
-            ),
-            ApiError::Validation(ref e) => (
-                axum::http::StatusCode::BAD_REQUEST,
-                ErrorResponse {
-                    code: "VALIDATION_ERROR".into(),
-                    message: "Invalid input data".into(),
-                    details: Some(e.to_string()),
+                    code: "INTERNAL_SERVER_ERROR".into(),
+                    message: "An internal server error occurred".into(),
+                    details: None,
                 },
             ),
         };
