@@ -1,9 +1,11 @@
 mod ag;
+mod auth;
 mod config;
 mod edge;
 mod error;
 mod graph;
 mod label;
+mod org;
 mod user;
 mod utils;
 mod vertex;
@@ -11,19 +13,21 @@ mod vertex;
 use crate::config::{AppState, Config};
 
 use axum::{
+    http::{HeaderValue, Method},
+    middleware,
     routing::{get, post},
     Router,
 };
 use dotenvy::dotenv;
-use sqlx::{postgres::PgPoolOptions, Executor, PgPool};
+use maplit::hashmap;
+use sqlx::{postgres::PgPoolOptions, Executor};
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::{self, TraceLayer};
 use tracing::{info, Level};
-
-// TODO: handle already exists errors from database
 
 #[tokio::main]
 async fn main() {
@@ -41,6 +45,7 @@ async fn main() {
     let config = Config::from_env().expect("Failed to load configuration from environment");
 
     // Create the connection pool with configuration
+    // Requires the AGE extension to be installed in the database
     let pool = Arc::new(
         PgPoolOptions::new()
             .max_connections(config.max_connections)
@@ -63,21 +68,42 @@ async fn main() {
         .await
         .expect("Failed to run migrations");
 
+    // Initialize OIDC providers (Only Google for now)
+    let google_oidc_config = auth::OidcConfig::from_env(auth::AuthProvider::Google)
+        .expect("Failed to load OIDC configuration from environment");
+    let google_oidc_provider = auth::OidcProvider::new(google_oidc_config).await.unwrap();
+
     // Initialize AppState
     let state = AppState {
         pool: Arc::clone(&pool),
         graph_name: config.graph_name.clone(),
+        oidc_providers: hashmap! {
+            "google".to_string() => google_oidc_provider,
+        },
     };
+
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+        .allow_methods(vec![Method::GET, Method::POST, Method::PUT, Method::DELETE])
+        .allow_headers(Any);
 
     // Create router with all endpoints
     let app = Router::new()
+        .route("/profile", get(user::profile))
         .route("/graphs", post(graph::create_graph))
         .route("/schema/nodes/labels", post(vertex::create_node_label))
         .route("/schema/edges/labels", post(edge::create_edge_label))
         .route("/nodes", post(vertex::create_node))
         .route("/nodes/:name", get(vertex::get_node_by_name))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth::auth_middleware,
+        ))
+        .route("/auth/url", post(auth::authorize))
+        .route("/oidc/callback", post(auth::callback))
         .with_state(state)
         .layer(TimeoutLayer::new(Duration::from_secs(10)))
+        .layer(cors)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(trace::DefaultMakeSpan::new().level(Level::INFO))

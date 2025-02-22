@@ -1,15 +1,14 @@
-use crate::error::ApiError;
+use crate::auth::OauthSession;
 use crate::AppState;
-use axum::extract::State;
-use axum::response::{IntoResponse, Redirect};
 use openidconnect::core::{CoreClient, CoreProviderMetadata, CoreResponseType};
+use openidconnect::PkceCodeChallenge;
 use openidconnect::{
     AuthenticationFlow, ClientId, ClientSecret, CsrfToken, EndpointMaybeSet, EndpointNotSet,
     EndpointSet, IssuerUrl, Nonce, RedirectUrl, Scope,
 };
 use reqwest::ClientBuilder;
-use sqlx::query;
 use std::env;
+use strum_macros::Display;
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -37,9 +36,11 @@ pub enum OidcError {
     DatabaseError(String),
 }
 
+use strum_macros::EnumString;
 // Enum to represent supported OIDC providers
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Display, EnumString, Copy)]
 pub enum AuthProvider {
+    #[strum(serialize = "google", serialize = "https://accounts.google.com")]
     Google,
     // Microsoft, // Add more providers here in the future
 }
@@ -99,6 +100,7 @@ impl OidcConfig {
 #[derive(Debug, Clone)]
 pub struct OidcProvider {
     pub client: Client,
+    pub http_client: reqwest::Client,
 }
 
 impl OidcProvider {
@@ -131,47 +133,36 @@ impl OidcProvider {
             "OIDC provider for {:?} initialized successfully.",
             config.provider
         );
-        Ok(Self { client })
+        Ok(Self {
+            client,
+            http_client,
+        })
     }
 
     // Generate the authorization URL to which we'll redirect the user
-    pub async fn authorize_url(&self, state: &AppState) -> Result<String, OidcError> {
-        let csrf_token = CsrfToken::new_random;
-        let nonce = Nonce::new_random;
+    pub async fn generate_oidc_auth_url(&self, state: &AppState) -> Result<String, OidcError> {
+        let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
         let (authorize_url, csrf_state, nonce) = self
             .client
             .authorize_url(
                 AuthenticationFlow::<CoreResponseType>::AuthorizationCode,
-                csrf_token,
-                nonce,
+                CsrfToken::new_random,
+                Nonce::new_random,
             )
+            .set_pkce_challenge(pkce_challenge)
             .add_scope(Scope::new("openid".to_string()))
             .add_scope(Scope::new("email".to_string()))
             .add_scope(Scope::new("profile".to_string()))
             .url();
 
-        // Save the CSRF state and nonce in the database
-        let query = query(
-        "INSERT INTO app_data.oauth_states (state, nonce, expires_at) VALUES ($1, $2, NOW() + INTERVAL '5 minutes')",
-        )
-         .bind(csrf_state.secret())
-         .bind(nonce.secret());
-
-        // Execute the query
-        query.execute(&*state.pool).await.map_err(|e| {
-            eprintln!("Failed to execute query: {}", e);
-            OidcError::DatabaseError(e.to_string())
-        })?;
+        OauthSession::new(csrf_state.clone(), nonce.clone(), pkce_verifier)
+            .persist(state)
+            .await
+            .map_err(|e| {
+                eprintln!("Failed to persist OAuth state: {}", e);
+                OidcError::DatabaseError(e.to_string())
+            })?;
 
         Ok(authorize_url.to_string())
     }
-}
-
-pub async fn authorize(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
-    let oidc_provider = state.oidc_providers.get("google").unwrap();
-    let authorize_url = oidc_provider.authorize_url(&state).await.map_err(|e| {
-        error!("Failed to generate authorization URL: {:?}", e);
-        ApiError::InternalServerError
-    })?;
-    Ok(Redirect::temporary(&authorize_url).into_response())
 }

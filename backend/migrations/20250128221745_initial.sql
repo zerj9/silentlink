@@ -27,9 +27,11 @@ CREATE TABLE app_data.user (
     email VARCHAR(255) NOT NULL UNIQUE,
     first_name VARCHAR(100),
     last_name VARCHAR(100),
+    global_role VARCHAR(50),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     is_active BOOLEAN DEFAULT true
+    CHECK (global_role IS NULL OR global_role <> '')
 );
 CREATE INDEX idx_users_email ON app_data.user(email);
 
@@ -84,7 +86,7 @@ CREATE TABLE app_data.oauth_session (
 
 -- Table to store organization information
 CREATE TABLE app_data.org (
-    id integer PRIMARY KEY,
+    id UUID PRIMARY KEY,
     name text NOT NULL,
     description text,
     admin UUID NOT NULL REFERENCES app_data.user(id),
@@ -119,9 +121,9 @@ CREATE INDEX idx_app_graphid ON app_data.graph_info (app_graphid);
 CREATE INDEX idx_age_graphid ON app_data.graph_info (age_graphid);
 
 -- Table to store user and organization relationship
-CREATE TABLE app_data.user_org (
+CREATE TABLE app_data.org_user (
     user_id UUID NOT NULL REFERENCES app_data.user(id),
-    org_id integer NOT NULL REFERENCES app_data.org(id),
+    org_id UUID NOT NULL REFERENCES app_data.org(id),
     role text NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),

@@ -14,7 +14,7 @@ use sqlx::postgres::{PgRow, Postgres};
 use sqlx::Transaction;
 use sqlx::{FromRow, Row};
 use std::collections::HashMap;
-use tracing::info;
+use tracing::{error, info};
 use validator::Validate;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -82,14 +82,21 @@ pub async fn create_node_label(
     let label = payload.label.to_uppercase();
 
     // Start a transaction
-    let mut transaction: Transaction<Postgres> = state.pool.begin().await?;
+    let mut transaction: Transaction<Postgres> = state.pool.begin().await.map_err(|e| {
+        error!("Failed to start transaction for create_node_label: {}", e);
+        ApiError::InternalServerError
+    })?;
 
     let age_query = "SELECT ag_catalog.create_vlabel($1, $2)";
     sqlx::query(age_query)
         .bind(&state.graph_name)
         .bind(label)
         .execute(&mut *transaction)
-        .await?;
+        .await
+        .map_err(|e| {
+            error!("Failed to execute CREATE node label query: {}", e);
+            ApiError::InternalServerError
+        })?;
 
     // Create hash map
     let mut vertex_properties = HashMap::new();
@@ -170,7 +177,11 @@ pub async fn create_node(
     // Execute the query and fetch the result as an AgTypeRow
     let vertex = sqlx::query_as::<_, Vertex>(&age_query)
         .fetch_one(&*state.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            error!("Failed to execute CREATE node query: {}", e);
+            ApiError::InternalServerError
+        })?;
 
     // Convert the Vertex to a JSON value and return it
     let vertex_value = serde_json::to_value(vertex)?;
@@ -188,7 +199,11 @@ async fn get_node_label(
 
     let rows = sqlx::query_as::<_, AgType>(&query)
         .fetch_all(&*state.pool)
-        .await?;
+        .await
+        .map_err(|e| {
+            error!("Failed to execute MATCH node label query: {}", e);
+            ApiError::InternalServerError
+        })?;
 
     let mut labels = Vec::new();
     for row in rows {

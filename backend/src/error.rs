@@ -28,6 +28,8 @@ pub enum ApiError {
     Serialization(#[from] serde_json::Error),
     #[error("Validation error: {0}")]
     Validation(#[from] ValidationErrors),
+    #[error("Unauthorized")]
+    Unauthorized,
 }
 
 impl axum::response::IntoResponse for ApiError {
@@ -101,6 +103,14 @@ impl axum::response::IntoResponse for ApiError {
                 ErrorResponse {
                     code: "INTERNAL_SERVER_ERROR".into(),
                     message: "An internal server error occurred".into(),
+                    details: None,
+                },
+            ),
+            ApiError::Unauthorized => (
+                axum::http::StatusCode::UNAUTHORIZED,
+                ErrorResponse {
+                    code: "UNAUTHORIZED".into(),
+                    message: "Unauthorized".into(),
                     details: None,
                 },
             ),

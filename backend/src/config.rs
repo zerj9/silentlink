@@ -1,11 +1,12 @@
 use dotenvy::dotenv;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use std::env;
 use std::num::ParseIntError;
 use std::sync::Arc;
 use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
     pub max_connections: u32,
@@ -46,8 +47,9 @@ impl Config {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     pub pool: Arc<PgPool>,
     pub graph_name: String,
+    pub oidc_providers: HashMap<String, crate::auth::OidcProvider>,
 }
