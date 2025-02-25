@@ -89,7 +89,6 @@ CREATE TABLE app_data.org (
     id UUID PRIMARY KEY,
     name text NOT NULL,
     description text,
-    admin UUID NOT NULL REFERENCES app_data.user(id),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     CHECK (name <> '')
@@ -99,6 +98,17 @@ CREATE TRIGGER update_org_updated_at
 BEFORE UPDATE ON app_data.org
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
+
+-- Table to store user and organization relationship
+CREATE TABLE app_data.org_member (
+    user_id UUID NOT NULL REFERENCES app_data.user(id),
+    org_id UUID NOT NULL REFERENCES app_data.org(id),
+    role text NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (user_id, org_id),
+    CHECK (role <> '')
+);
 
 -- TODO: Add org as a foreign key
 -- Table to store graph information
@@ -120,19 +130,8 @@ CREATE TABLE app_data.graph_info (
 CREATE INDEX idx_app_graphid ON app_data.graph_info (app_graphid);
 CREATE INDEX idx_age_graphid ON app_data.graph_info (age_graphid);
 
--- Table to store user and organization relationship
-CREATE TABLE app_data.org_user (
-    user_id UUID NOT NULL REFERENCES app_data.user(id),
-    org_id UUID NOT NULL REFERENCES app_data.org(id),
-    role text NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    PRIMARY KEY (user_id, org_id),
-    CHECK (role <> '')
-);
-
 -- Table to store graph and user relationship
-CREATE TABLE app_data.graph_user (
+CREATE TABLE app_data.graph_member (
     app_graphid text NOT NULL REFERENCES app_data.graph_info(app_graphid),
     user_id UUID NOT NULL REFERENCES app_data.user(id),
     role text NOT NULL,
