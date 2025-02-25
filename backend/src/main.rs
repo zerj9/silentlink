@@ -90,6 +90,9 @@ async fn main() {
     // Create router with all endpoints
     let app = Router::new()
         .route("/profile", get(user::profile))
+        .route("/orgs", post(org::create_org))
+        .route("/orgs", get(org::get_orgs))
+        .route("/orgs/:id/members", post(org::add_org_member))
         .route("/graphs", post(graph::create_graph))
         .route("/schema/nodes/labels", post(vertex::create_node_label))
         .route("/schema/edges/labels", post(edge::create_edge_label))
