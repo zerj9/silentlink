@@ -1,6 +1,5 @@
 use crate::user::User;
 use crate::{auth::Session, config::AppState};
-use axum::response::IntoResponse;
 use axum::{
     body::Body,
     extract::{FromRef, State},
@@ -10,32 +9,11 @@ use axum::{
 };
 use axum_extra::headers::{authorization::Bearer, Authorization};
 use axum_extra::TypedHeader;
-use reqwest::StatusCode;
-use std::sync::Arc;
 
 #[derive(Debug, Clone, FromRef)]
 pub struct Auth {
     pub user: Option<User>,
 }
-
-//pub async fn auth_middleware(
-//    State(state): State<AppState>,
-//    // you can add more extractors here but the last
-//    // extractor must implement `FromRequest` which
-//    // `Request` does
-//    TypedHeader(Authorization(bearer)): TypedHeader<Authorization<Bearer>>,
-//    request: Request<Body>,
-//    next: Next,
-//) -> Response {
-//    // do something with `request`...
-//
-//    println!("Bearer: {:?}", bearer);
-//    //let response = next.run(request).await;
-//
-//    // do something with `response`...
-//
-//    StatusCode::OK.into_response()
-//}
 
 pub async fn auth_middleware(
     State(state): State<AppState>,
