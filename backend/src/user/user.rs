@@ -1,4 +1,5 @@
 use crate::auth::AuthProvider;
+use crate::org::OrgMember;
 use chrono::{DateTime, Utc};
 use openidconnect::SubjectIdentifier;
 use sqlx::Row;
@@ -99,6 +100,30 @@ impl User {
             .await?;
 
         Ok(user)
+    }
+
+    pub async fn from_email(pg_pool: &sqlx::PgPool, email: &str) -> Result<User, sqlx::Error> {
+        let query = "SELECT * FROM app_data.user WHERE email = $1";
+        let user = sqlx::query_as::<_, User>(query)
+            .bind(email)
+            .fetch_one(pg_pool)
+            .await?;
+
+        Ok(user)
+    }
+
+    pub async fn get_org_memberships(
+        &self,
+        pg_pool: &sqlx::PgPool,
+    ) -> Result<Vec<OrgMember>, sqlx::Error> {
+        let query = "
+        SELECT * FROM app_data.org_member WHERE user_id = $1";
+        let org_memberships = sqlx::query_as::<_, OrgMember>(query)
+            .bind(self.id)
+            .fetch_all(pg_pool)
+            .await?;
+
+        Ok(org_memberships)
     }
 }
 
