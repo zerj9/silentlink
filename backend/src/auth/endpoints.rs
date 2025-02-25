@@ -189,6 +189,7 @@ pub async fn callback(
     })?;
 
     // Create a new session
+    // TODO: Verify nonce
     let expires_at = claims.issue_time() + token_res.expires_in().unwrap();
     let session = Session::create(
         &*state.pool,
