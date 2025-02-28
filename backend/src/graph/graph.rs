@@ -9,6 +9,17 @@ use sqlx::{Row, Transaction};
 use tracing::info;
 use validator::Validate;
 
+pub struct GraphInfo {
+    // Unique randomly generated identifier for the graph name to pass to AGE
+    // AGE graph names are unique. This allows us to have multiple graphs with the same name
+    pub app_graphid: String,
+    pub age_graphid: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
 #[derive(Debug, Validate, Deserialize)]
 pub struct CreateGraphRequest {
     name: String,
@@ -29,7 +40,7 @@ pub async fn create_graph(
     // Must be unique in the application
     // This is the name that will be used to create the graph in AGE
     // Must start with a letter (Regex in AGE repo)
-    let app_graphid = format!("g{}", create_id(6));
+    let app_graphid = format!("g{}", create_id(8));
 
     // TODO: Check if graph with the same name already exists
 
