@@ -85,8 +85,8 @@ impl GraphInfo {
 
         // Insert the graph info into the database
         let graph_info_query =
-            "INSERT INTO graph_info (app_graphid, name, description, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)";
+            "INSERT INTO app_data.graph_info (app_graphid, name, description, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5)";
         sqlx::query(graph_info_query)
             .bind(&self.app_graphid)
             .bind(&self.name)
@@ -100,7 +100,7 @@ impl GraphInfo {
             GraphMember::new(self.app_graphid.clone(), admin_user.id, GraphRole::Admin);
 
         let graph_member_query =
-            "INSERT INTO graph_member (app_graphid, user_id, role, created_at, updated_at)
+            "INSERT INTO app_data.graph_member (app_graphid, user_id, role, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5)";
         sqlx::query(&graph_member_query)
             .bind(&graph_member.app_graphid)
