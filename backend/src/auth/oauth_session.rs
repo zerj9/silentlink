@@ -42,8 +42,8 @@ impl<'r> FromRow<'r, PgRow> for OauthSession {
 pub enum OauthSessionError {
     #[error("Failed to create HTTP client: {0}")]
     NetworkError(String),
-    #[error("Failed to validate token: {0}")]
-    ValidationError(String),
+    //#[error("Failed to validate token: {0}")]
+    //ValidationError(String),
 }
 
 impl OauthSession {

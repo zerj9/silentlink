@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::Json;
 use oauth2::{AuthorizationCode, CsrfToken, TokenResponse};
-use openidconnect::{LanguageTag, Nonce, TokenResponse as OidcTokenResponse};
+use openidconnect::{LanguageTag, TokenResponse as OidcTokenResponse};
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
@@ -190,6 +190,7 @@ pub async fn callback(
 
     // Create a new session
     // TODO: Verify nonce
+    // use openidconnect::Nonce;
     let expires_at = claims.issue_time() + token_res.expires_in().unwrap();
     let session = Session::create(
         &*state.pool,
