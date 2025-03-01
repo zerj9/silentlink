@@ -164,3 +164,45 @@ pub async fn add_org_member(
 
     Ok(StatusCode::CREATED)
 }
+
+pub async fn get_org_members(
+    State(state): State<AppState>,
+    Extension(auth): Extension<Auth>,
+    Path(org_id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let auth_user = auth.user.ok_or_else(|| {
+        error!("Unauthorized access: no valid user found in middleware");
+        ApiError::Unauthorized
+    })?;
+
+    let org = Org::from_id(&state.pool, org_id).await.map_err(|e| {
+        error!("Failed to fetch org: {:?}", e);
+        ApiError::InternalServerError
+    })?;
+
+    // Check that the reqesting user is org member
+    let requesting_member = org
+        .get_member(&state.pool, auth_user.id)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch org member: {:?}", e);
+            ApiError::InternalServerError
+        })?
+        .ok_or_else(|| {
+            error!("Requesting user is not a member of the org");
+            ApiError::Unauthorized
+        })?;
+
+    // Check that the requesting member is an admin or member
+    if requesting_member.role != Role::Admin || requesting_member.role != Role::Viewer {
+        error!("Requesting user is not an admin of the org");
+        return Err(ApiError::Unauthorized);
+    }
+
+    let members = org.get_members(&state.pool).await.map_err(|e| {
+        error!("Failed to fetch org members: {:?}", e);
+        ApiError::InternalServerError
+    })?;
+
+    Ok((StatusCode::OK, Json(members)))
+}

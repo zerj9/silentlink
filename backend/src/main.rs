@@ -93,6 +93,7 @@ async fn main() {
         .route("/orgs", post(org::create_org))
         .route("/orgs", get(org::get_orgs))
         .route("/orgs/:id/members", post(org::add_org_member))
+        .route("/orgs/:id/members", get(org::get_org_members))
         .route("/graphs", post(graph::create_graph))
         .route("/schema/nodes/labels", post(vertex::create_node_label))
         .route("/schema/edges/labels", post(edge::create_edge_label))

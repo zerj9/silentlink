@@ -8,9 +8,10 @@ use uuid::Uuid;
 #[strum(serialize_all = "lowercase")]
 pub enum Role {
     Admin,
-    Member,
+    Viewer,
 }
 
+#[derive(Debug, Serialize)]
 pub struct OrgMember {
     pub org_id: Uuid,
     pub user_id: Uuid,
@@ -140,6 +141,14 @@ impl Org {
             .bind(&self.id)
             .bind(&user_id)
             .fetch_optional(pool)
+            .await
+    }
+
+    pub async fn get_members(&self, pool: &sqlx::PgPool) -> Result<Vec<OrgMember>, sqlx::Error> {
+        let org_user_query = "SELECT * FROM app_data.org_member WHERE org_id = $1";
+        sqlx::query_as::<_, OrgMember>(org_user_query)
+            .bind(&self.id)
+            .fetch_all(pool)
             .await
     }
 
