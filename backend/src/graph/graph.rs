@@ -96,15 +96,18 @@ impl GraphInfo {
             .execute(&mut *transaction)
             .await?;
 
+        let graph_member =
+            GraphMember::new(self.app_graphid.clone(), admin_user.id, GraphRole::Admin);
+
         let graph_member_query =
             "INSERT INTO graph_member (app_graphid, user_id, role, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5)";
-        sqlx::query(graph_member_query)
-            .bind(&self.app_graphid)
-            .bind(&admin_user.id)
-            .bind("admin")
-            .bind(&self.created_at)
-            .bind(&self.updated_at)
+        sqlx::query(&graph_member_query)
+            .bind(&graph_member.app_graphid)
+            .bind(&graph_member.user_id)
+            .bind(&graph_member.role.to_string())
+            .bind(&graph_member.created_at)
+            .bind(&graph_member.updated_at)
             .execute(&mut *transaction)
             .await?;
 
