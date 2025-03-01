@@ -115,20 +115,14 @@ CREATE TABLE app_data.org_member (
 CREATE TABLE app_data.graph_info (
     -- Graph id created by the application, must start with _ or letter to pass to AGE
     app_graphid text PRIMARY KEY,
-    -- Original graphid created by AGE, used to query the graph
-    age_graphid integer NOT NULL REFERENCES ag_catalog.ag_graph(graphid),  
     name text NOT NULL,
     description text,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE (app_graphid),
-    UNIQUE (age_graphid),
     CHECK (name <> '')
 );
-
-
 CREATE INDEX idx_app_graphid ON app_data.graph_info (app_graphid);
-CREATE INDEX idx_age_graphid ON app_data.graph_info (age_graphid);
 
 -- Table to store graph and user relationship
 CREATE TABLE app_data.graph_member (
