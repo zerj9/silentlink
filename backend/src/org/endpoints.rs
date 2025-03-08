@@ -193,8 +193,10 @@ pub async fn get_org_members(
             ApiError::Unauthorized
         })?;
 
+    println!("{:?}", requesting_member.role);
+
     // Check that the requesting member is an admin or member
-    if requesting_member.role != Role::Admin || requesting_member.role != Role::Viewer {
+    if requesting_member.role != Role::Admin && requesting_member.role != Role::Viewer {
         error!("Requesting user is not an admin of the org");
         return Err(ApiError::Unauthorized);
     }
