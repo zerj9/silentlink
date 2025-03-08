@@ -2,14 +2,16 @@ use crate::auth::Auth;
 use crate::config::AppState;
 use crate::error::ApiError;
 use crate::graph::{GraphError, GraphInfo};
+use crate::org::{Org, OrgMember, Role};
 use axum::{
-    extract::{Extension, State},
+    extract::{Extension, Path, State},
     Json,
 };
 use lazy_static::lazy_static;
 use regex::Regex;
 use serde::Deserialize;
 use tracing::{error, info};
+use uuid::Uuid;
 use validator::Validate;
 
 lazy_static! {
@@ -33,6 +35,7 @@ pub struct CreateGraphRequest {
 pub async fn create_graph(
     State(state): State<AppState>,
     Extension(auth): Extension<Auth>,
+    Path(org_id): Path<Uuid>,
     Json(request): Json<CreateGraphRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     request.validate()?;
@@ -42,11 +45,38 @@ pub async fn create_graph(
         ApiError::Unauthorized
     })?;
 
+    let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
+        error!("Failed to fetch organization: {:?}", e);
+        ApiError::InternalServerError
+    })?;
+
+    // Check that the user is a member of the organization
+    let org_member = org
+        .get_member(&state.pool, user.id)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch org member: {:?}", e);
+            ApiError::InternalServerError
+        })?
+        .map_or_else(
+            || {
+                error!("User is not a member of the organization");
+                Err(ApiError::Unauthorized)
+            },
+            |m| Ok(m),
+        )?;
+
+    // Check that the user is an admin of the organization
+    if org_member.role != Role::Admin {
+        error!("User is not an admin of the organization");
+        return Err(ApiError::Unauthorized);
+    }
+
     // Convert description which is Option<String> to Option<&str>
     let description = request.description.as_deref();
 
     // TODO: Handle different error types
-    let graph_info = GraphInfo::new(&request.name, description).map_err(|e| match e {
+    let graph_info = GraphInfo::new(&org, &request.name, description).map_err(|e| match e {
         GraphError::ValidationError(msg) => {
             error!("Validation error when creating graph: {}", msg);
             ApiError::BadRequest(msg)

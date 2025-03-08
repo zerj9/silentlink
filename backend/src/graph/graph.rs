@@ -1,5 +1,6 @@
-use crate::{user::User, utils::create_id};
+use crate::{org::Org, user::User, utils::create_id};
 use serde::{Deserialize, Serialize};
+use sqlx::{postgres::PgRow, FromRow, Row};
 use strum_macros::{Display, EnumString};
 use uuid::Uuid;
 
@@ -36,10 +37,25 @@ pub struct GraphInfo {
     // AGE graph names are unique. This allows us to have multiple graphs with the same name
     // Has to start with a letter
     pub app_graphid: String,
+    pub org_id: Uuid,
     pub name: String,
     pub description: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+// Implement FromRow for GraphInfo to convert from PgRow to GraphInfo
+impl<'r> FromRow<'r, PgRow> for GraphInfo {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        Ok(Self {
+            app_graphid: row.try_get("app_graphid")?,
+            org_id: row.try_get("org_id")?,
+            name: row.try_get("name")?,
+            description: row.try_get("description")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
 }
 
 // Create error enum for graph creation
@@ -51,7 +67,7 @@ pub enum GraphError {
 }
 
 impl GraphInfo {
-    pub fn new(name: &str, description: Option<&str>) -> Result<Self, GraphError> {
+    pub fn new(org: &Org, name: &str, description: Option<&str>) -> Result<Self, GraphError> {
         let now = chrono::Utc::now();
         // Prefix g to the random id. Required by AGE to start with a letter
         let graph_id = "g".to_string() + &create_id(8);
@@ -65,6 +81,7 @@ impl GraphInfo {
 
         Ok(Self {
             app_graphid: graph_id,
+            org_id: org.id,
             name: name.to_string(),
             description: description.map(|s| s.to_string()),
             created_at: now,
@@ -85,10 +102,11 @@ impl GraphInfo {
 
         // Insert the graph info into the database
         let graph_info_query =
-            "INSERT INTO app_data.graph_info (app_graphid, name, description, created_at, updated_at)
+            "INSERT INTO app_data.graph_info (app_graphid, org_id, name, description, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5)";
         sqlx::query(graph_info_query)
             .bind(&self.app_graphid)
+            .bind(&self.org_id)
             .bind(&self.name)
             .bind(&self.description)
             .bind(&self.created_at)
