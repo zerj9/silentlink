@@ -113,7 +113,7 @@ pub async fn add_org_member(
         ApiError::Unauthorized
     })?;
 
-    let org = Org::from_id(&state.pool, org_id).await.map_err(|e| {
+    let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
         error!("Failed to fetch org: {:?}", e);
         ApiError::InternalServerError
     })?;
@@ -175,7 +175,7 @@ pub async fn get_org_members(
         ApiError::Unauthorized
     })?;
 
-    let org = Org::from_id(&state.pool, org_id).await.map_err(|e| {
+    let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
         error!("Failed to fetch org: {:?}", e);
         ApiError::InternalServerError
     })?;

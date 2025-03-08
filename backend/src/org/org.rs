@@ -1,3 +1,4 @@
+use crate::graph::GraphInfo;
 use crate::user::User;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
@@ -111,7 +112,7 @@ impl Org {
         Ok(())
     }
 
-    pub async fn from_id(pool: &sqlx::PgPool, org_id: Uuid) -> Result<Self, sqlx::Error> {
+    pub async fn from_id(pool: &sqlx::PgPool, org_id: &Uuid) -> Result<Self, sqlx::Error> {
         let org_query = "SELECT * FROM app_data.org WHERE id = $1";
         sqlx::query_as::<_, Org>(org_query)
             .bind(&org_id)
@@ -171,5 +172,13 @@ impl Org {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn get_graphs(&self, pool: &sqlx::PgPool) -> Result<Vec<GraphInfo>, sqlx::Error> {
+        let graph_query = "SELECT * FROM app_data.graph_info WHERE org_id = $1";
+        sqlx::query_as::<_, GraphInfo>(graph_query)
+            .bind(&self.id)
+            .fetch_all(pool)
+            .await
     }
 }
