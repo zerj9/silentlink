@@ -115,6 +115,7 @@ CREATE TABLE app_data.org_member (
 CREATE TABLE app_data.graph_info (
     -- Graph id created by the application, must start with _ or letter to pass to AGE
     app_graphid text PRIMARY KEY,
+    org_id UUID NOT NULL REFERENCES app_data.org(id),
     name text NOT NULL,
     description text,
     created_at TIMESTAMPTZ DEFAULT now(),
