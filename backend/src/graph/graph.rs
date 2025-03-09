@@ -103,7 +103,7 @@ impl GraphInfo {
         // Insert the graph info into the database
         let graph_info_query =
             "INSERT INTO app_data.graph_info (app_graphid, org_id, name, description, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5)";
+            VALUES ($1, $2, $3, $4, $5, $6)";
         sqlx::query(graph_info_query)
             .bind(&self.app_graphid)
             .bind(&self.org_id)
@@ -131,5 +131,23 @@ impl GraphInfo {
 
         transaction.commit().await?;
         Ok(())
+    }
+
+    pub async fn get_all(pool: &sqlx::PgPool, org_id: Uuid) -> Result<Vec<GraphInfo>, sqlx::Error> {
+        let query = "SELECT * FROM app_data.graph_info WHERE org_id = $1";
+        let rows = sqlx::query(query).bind(&org_id).fetch_all(pool).await?;
+        let graphs: Vec<GraphInfo> = rows
+            .iter()
+            .map(|row| GraphInfo::from_row(row).unwrap())
+            .collect();
+        Ok(graphs)
+    }
+
+    pub async fn from_id(pool: &sqlx::PgPool, app_graphid: &str) -> Result<Self, sqlx::Error> {
+        let query = "SELECT * FROM app_data.graph_info WHERE app_graphid = $1";
+        sqlx::query_as::<_, GraphInfo>(query)
+            .bind(app_graphid)
+            .fetch_one(pool)
+            .await
     }
 }
