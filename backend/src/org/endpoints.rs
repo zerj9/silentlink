@@ -193,15 +193,13 @@ pub async fn get_org_members(
             ApiError::Unauthorized
         })?;
 
-    println!("{:?}", requesting_member.role);
-
     // Check that the requesting member is an admin or member
     if requesting_member.role != Role::Admin && requesting_member.role != Role::Viewer {
         error!("Requesting user is not an admin of the org");
         return Err(ApiError::Unauthorized);
     }
 
-    let members = org.get_members(&state.pool).await.map_err(|e| {
+    let members = org.get_members_with_email(&state.pool).await.map_err(|e| {
         error!("Failed to fetch org members: {:?}", e);
         ApiError::InternalServerError
     })?;

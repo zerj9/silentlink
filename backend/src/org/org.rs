@@ -37,6 +37,33 @@ impl<'r> FromRow<'r, PgRow> for OrgMember {
     }
 }
 
+#[derive(Debug, Serialize)]
+pub struct OrgMemberWithEmail {
+    pub org_id: Uuid,
+    pub user_id: Uuid,
+    pub role: Role,
+    pub email: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+// Implement FromRow for OrgMemberWithEmail to convert from PgRow to OrgMemberWithEmail
+impl<'r> FromRow<'r, PgRow> for OrgMemberWithEmail {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let role: String = row.try_get("role")?;
+        let role = role.parse::<Role>().unwrap();
+
+        Ok(Self {
+            org_id: row.try_get("org_id")?,
+            user_id: row.try_get("user_id")?,
+            role,
+            email: row.try_get("email")?,
+            created_at: row.try_get("created_at")?,
+            updated_at: row.try_get("updated_at")?,
+        })
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct Org {
     pub id: Uuid,
@@ -137,17 +164,26 @@ impl Org {
         pool: &sqlx::PgPool,
         user_id: Uuid,
     ) -> Result<Option<OrgMember>, sqlx::Error> {
-        let org_user_query = "SELECT * FROM app_data.org_member WHERE org_id = $1 AND user_id = $2";
-        sqlx::query_as::<_, OrgMember>(org_user_query)
+        let query = "SELECT * FROM app_data.org_member WHERE org_id = $1 AND user_id = $2";
+
+        sqlx::query_as::<_, OrgMember>(query)
             .bind(&self.id)
             .bind(&user_id)
             .fetch_optional(pool)
             .await
     }
 
-    pub async fn get_members(&self, pool: &sqlx::PgPool) -> Result<Vec<OrgMember>, sqlx::Error> {
-        let org_user_query = "SELECT * FROM app_data.org_member WHERE org_id = $1";
-        sqlx::query_as::<_, OrgMember>(org_user_query)
+    pub async fn get_members_with_email(
+        &self,
+        pool: &sqlx::PgPool,
+    ) -> Result<Vec<OrgMemberWithEmail>, sqlx::Error> {
+        let query = "
+        SELECT om.*, u.email
+        FROM app_data.org_member om
+        JOIN app_data.user u ON om.user_id = u.id
+        WHERE om.org_id = $1
+        ";
+        sqlx::query_as::<_, OrgMemberWithEmail>(query)
             .bind(&self.id)
             .fetch_all(pool)
             .await
