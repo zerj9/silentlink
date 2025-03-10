@@ -135,3 +135,26 @@ CREATE TABLE app_data.graph_member (
     PRIMARY KEY (app_graphid, user_id),
     CHECK (role <> '')
 );
+
+-- Table to store node types
+CREATE TABLE IF NOT EXISTS app_data.node_types (
+    app_graphid text NOT NULL REFERENCES app_data.graph_info(app_graphid),
+    type_name TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_by UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (app_graphid, type_name)
+);
+
+-- Table to store node type attributes
+CREATE TABLE IF NOT EXISTS app_data.node_type_attributes (
+    app_graphid text NOT NULL REFERENCES app_data.graph_info(app_graphid),
+    type_name TEXT NOT NULL,
+    attribute_name TEXT NOT NULL,
+    data_type TEXT NOT NULL,
+    required BOOLEAN NOT NULL DEFAULT false,
+    description TEXT,
+    PRIMARY KEY (app_graphid, type_name, attribute_name),
+    FOREIGN KEY (app_graphid, type_name) REFERENCES app_data.node_types(app_graphid, type_name) ON DELETE CASCADE
+);

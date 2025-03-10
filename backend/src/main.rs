@@ -96,8 +96,11 @@ async fn main() {
         .route("/orgs/:id/members", get(org::get_org_members))
         .route("/orgs/:id/graphs", post(graph::create_graph))
         .route("/orgs/:id/graphs", get(graph::get_graphs))
-        .route("/orgs/:org_id/graphs/:graph_id", get(graph::get_graph))
-        .route("/schema/nodes/labels", post(vertex::create_node_label))
+        .route("/graphs/:graph_id", get(graph::get_graph))
+        .route(
+            "/graphs/:graph_id/meta/node_types",
+            post(vertex::create_node_type),
+        )
         .route("/schema/edges/labels", post(edge::create_edge_label))
         .route("/nodes", post(vertex::create_node))
         .route("/nodes/:name", get(vertex::get_node_by_name))

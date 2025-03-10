@@ -152,18 +152,29 @@ pub async fn get_graphs(
 pub async fn get_graph(
     State(state): State<AppState>,
     Extension(auth): Extension<Auth>,
-    Path((org_id, graph_id)): Path<(Uuid, String)>,
+    Path(graph_id): Path<String>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // TODO: Add functionality to allow public graphs to be viewed by anyone
     // Anonymous users cannot be part of any organizations
     let user = auth.user.ok_or_else(|| {
         error!("Unauthorized access: no valid user found in middleware");
         ApiError::Unauthorized
     })?;
 
-    let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
-        error!("Failed to fetch organization: {:?}", e);
-        ApiError::InternalServerError
-    })?;
+    // Get the graph by id
+    let graph = GraphInfo::from_id(&state.pool, &graph_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch graph: {:?}", e);
+            ApiError::InternalServerError
+        })?;
+
+    let org = Org::from_id(&state.pool, &graph.org_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch organization: {:?}", e);
+            ApiError::InternalServerError
+        })?;
 
     // Check that the user is a member of the organization
     let org_member = org
@@ -185,14 +196,6 @@ pub async fn get_graph(
         error!("User is not an admin of the organization");
         return Err(ApiError::Unauthorized);
     }
-
-    // Get the graph by id
-    let graph = GraphInfo::from_id(&state.pool, &graph_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to fetch graph: {:?}", e);
-            ApiError::InternalServerError
-        })?;
 
     let response = serde_json::json!({
         "id": graph.app_graphid,
