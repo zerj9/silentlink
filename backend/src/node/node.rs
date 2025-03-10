@@ -12,27 +12,27 @@ struct CreateNodeResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Vertex {
+pub struct Node {
     id: i64,
     label: String,
     properties: HashMap<String, JsonValue>,
 }
 
-// Implement FromRow for Vertex
-// This uses the TryFrom implementation to convert AgType to Vertex
-impl<'r> FromRow<'r, PgRow> for Vertex {
+// Implement FromRow for Node
+// This uses the TryFrom implementation to convert AgType to Node
+impl<'r> FromRow<'r, PgRow> for Node {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         // Extract the AgType from the row
         let ag_type: AgType = row.try_get("row")?; // Replace "ag_column" with the actual column name
 
-        // Convert AgType to Vertex using TryFrom
-        let vertex = Vertex::try_from(ag_type).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+        // Convert AgType to Node using TryFrom
+        let node = Node::try_from(ag_type).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
-        Ok(vertex)
+        Ok(node)
     }
 }
 
-impl Vertex {
+impl Node {
     pub async fn get_by_name(
         state: &AppState,
         label: &str,
@@ -46,14 +46,14 @@ impl Vertex {
             &escaped_name
         );
 
-        sqlx::query_as::<_, Vertex>(&query)
+        sqlx::query_as::<_, Node>(&query)
             .fetch_one(&*state.pool)
             .await
     }
 }
 
-// Implement TryFrom for AgType to convert to Vertex
-impl TryFrom<AgType> for Vertex {
+// Implement TryFrom for AgType to convert to Node
+impl TryFrom<AgType> for Node {
     type Error = serde_json::Error;
 
     fn try_from(value: AgType) -> Result<Self, Self::Error> {

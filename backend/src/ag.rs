@@ -1,4 +1,4 @@
-use crate::vertex::Vertex;
+use crate::node::Node;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::decode::Decode;
@@ -46,11 +46,10 @@ impl<'r> Decode<'r, Postgres> for AgType {
 
             // Check if the type is "vertex"
             if value_type == "vertex" {
-                // Handle vertex type
+                // Handle vertex type by parsing the content as a Node
                 let content = content.trim_start_matches(char::is_control);
-                let vertex: Vertex = serde_json::from_str(content)?;
-                info!("Vertex: {:?}", vertex);
-                Ok(AgType(serde_json::to_value(vertex)?))
+                let node: Node = serde_json::from_str(content)?;
+                Ok(AgType(serde_json::to_value(node)?))
             } else {
                 // Reject other types
                 error!("Unsupported type: {}", value_type);

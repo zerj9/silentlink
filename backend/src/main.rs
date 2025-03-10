@@ -5,10 +5,10 @@ mod edge;
 mod error;
 mod graph;
 mod label;
+mod node;
 mod org;
 mod user;
 mod utils;
-mod vertex;
 
 use crate::config::{AppState, Config};
 
@@ -99,11 +99,14 @@ async fn main() {
         .route("/graphs/:graph_id", get(graph::get_graph))
         .route(
             "/graphs/:graph_id/meta/node_types",
-            post(vertex::create_node_type),
+            post(node::create_node_type),
+        )
+        .route(
+            "/graphs/:graph_id/meta/node_types",
+            get(node::get_node_types),
         )
         .route("/schema/edges/labels", post(edge::create_edge_label))
-        .route("/nodes", post(vertex::create_node))
-        .route("/nodes/:name", get(vertex::get_node_by_name))
+        .route("/nodes", post(node::create_node))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,

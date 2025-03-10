@@ -1,4 +1,4 @@
-use crate::{org::Org, user::User, utils::create_id};
+use crate::{node::NodeType, org::Org, user::User, utils::create_id};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, FromRow, Row};
 use strum_macros::{Display, EnumString};
@@ -149,5 +149,14 @@ impl GraphInfo {
             .bind(app_graphid)
             .fetch_one(pool)
             .await
+    }
+
+    pub async fn get_node_types(&self, pool: &sqlx::PgPool) -> Result<Vec<NodeType>, sqlx::Error> {
+        let query = "SELECT * FROM app_data.node_types WHERE app_graphid = $1";
+        let rows = sqlx::query_as::<_, NodeType>(query)
+            .bind(&self.app_graphid)
+            .fetch_all(pool)
+            .await?;
+        Ok(rows)
     }
 }
