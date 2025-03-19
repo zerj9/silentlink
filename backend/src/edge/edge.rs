@@ -1,11 +1,12 @@
 use crate::config::AppState;
 use crate::error::ApiError;
-use crate::label::CreateLabelRequest;
+//use crate::label::CreateLabelRequest;
 use crate::utils::{validate_label, validate_properties};
 use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
+use strum_macros::{AsRefStr, Display, EnumString};
 use validator::{Validate, ValidationError};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -17,17 +18,44 @@ struct Edge {
     properties: HashMap<String, JsonValue>,
 }
 
+#[derive(Debug, Clone, Deserialize, Display, EnumString, AsRefStr)]
+#[strum(serialize_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
+pub enum AttributeDataType {
+    String,
+    Number,
+    Boolean,
+    Date,
+    // Add other types as needed
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NewEdgeAttributeDefinition {
+    pub name: String,
+    pub data_type: AttributeDataType,
+    pub required: bool,
+    pub description: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEdgeTypeRequest {
+    pub name: String,
+    pub description: String,
+    pub attributes: Vec<NewEdgeAttributeDefinition>,
+}
+
 pub async fn create_edge_label(
     State(state): State<AppState>,
-    Json(payload): Json<CreateLabelRequest>,
+    Json(payload): Json<CreateEdgeTypeRequest>,
 ) -> Result<Json<()>, ApiError> {
     // Validate the label name before proceeding
-    payload.validate()?;
+    //payload.validate()?;
 
     let age_query = "SELECT ag_catalog.create_elabel($1, $2)";
     sqlx::query(age_query)
-        .bind(&state.graph_name)
-        .bind(&payload.label)
+        .bind("")
+        //.bind(&payload.graph_name)
+        .bind(&payload.name)
         .execute(&*state.pool)
         .await?;
 
