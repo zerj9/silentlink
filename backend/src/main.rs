@@ -4,7 +4,7 @@ mod config;
 mod edge;
 mod error;
 mod graph;
-mod label;
+//mod label;
 mod node;
 mod org;
 mod user;
@@ -76,7 +76,6 @@ async fn main() {
     // Initialize AppState
     let state = AppState {
         pool: Arc::clone(&pool),
-        graph_name: config.graph_name.clone(),
         oidc_providers: hashmap! {
             "google".to_string() => google_oidc_provider,
         },
@@ -105,8 +104,16 @@ async fn main() {
             "/graphs/:graph_id/meta/node_types",
             get(node::get_node_types),
         )
-        .route("/schema/edges/labels", post(edge::create_edge_label))
-        .route("/nodes", post(node::create_node))
+        .route(
+            "/graphs/:graph_id/meta/edge_types",
+            post(edge::create_edge_type),
+        )
+        .route(
+            "/graphs/:graph_id/meta/edge_types",
+            get(edge::get_edge_types),
+        )
+        .route("/graphs/:graph_id/nodes", post(node::create_node))
+        .route("/graphs/:graph_id/nodes", get(node::get_nodes))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
