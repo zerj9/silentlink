@@ -10,7 +10,6 @@ use thiserror::Error;
 pub struct Config {
     pub database_url: String,
     pub max_connections: u32,
-    pub graph_name: String,
 }
 
 #[derive(Debug, Error)]
@@ -36,13 +35,9 @@ impl Config {
                 ConfigError::InvalidValue("PG_MAX_CONNECTIONS".to_string(), e.to_string())
             })?;
 
-        let graph_name = env::var("GRAPH_NAME")
-            .map_err(|_| ConfigError::MissingVar("GRAPH_NAME".to_string()))?;
-
         Ok(Config {
             database_url,
             max_connections,
-            graph_name,
         })
     }
 }
@@ -50,6 +45,5 @@ impl Config {
 #[derive(Debug, Clone)]
 pub struct AppState {
     pub pool: Arc<PgPool>,
-    pub graph_name: String,
     pub oidc_providers: HashMap<String, crate::auth::OidcProvider>,
 }
