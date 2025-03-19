@@ -116,13 +116,10 @@ pub async fn create_node_type(
         ApiError::InternalServerError
     })?;
 
-    node_type
-        .save(&state.pool, &mut transaction)
-        .await
-        .map_err(|e| {
-            error!("Failed to save node type: {}", e);
-            ApiError::InternalServerError
-        })?;
+    node_type.save(&mut transaction).await.map_err(|e| {
+        error!("Failed to save node type: {}", e);
+        ApiError::InternalServerError
+    })?;
 
     // Store attributes for this node type
     for new_attr_def in &payload.attributes {

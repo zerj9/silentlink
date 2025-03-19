@@ -51,7 +51,6 @@ impl NodeType {
 
     pub async fn save(
         &self,
-        pool: &sqlx::PgPool,
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<(), sqlx::Error> {
         // In AGE, node types are implemented as vertex labels
@@ -82,7 +81,7 @@ impl NodeType {
             .bind(&self.description)
             .bind(&self.created_by)
             .bind(&self.created_at)
-            .execute(pool)
+            .execute(&mut **transaction)
             .await?;
 
         Ok(())
