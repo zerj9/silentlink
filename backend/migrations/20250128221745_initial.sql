@@ -102,59 +102,67 @@ EXECUTE FUNCTION update_updated_at_column();
 -- Table to store user and organization relationship
 CREATE TABLE app_data.org_member (
     user_id UUID NOT NULL REFERENCES app_data.user(id),
-    org_id UUID NOT NULL REFERENCES app_data.org(id),
+    org_id UUID NOT NULL REFERENCES app_data.org(id) ON DELETE CASCADE,
     role text NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     PRIMARY KEY (user_id, org_id),
     CHECK (role <> '')
 );
+CREATE INDEX idx_org_member_user_id ON app_data.org_member (user_id);
+CREATE INDEX idx_org_member_org_id ON app_data.org_member (org_id);
 
--- TODO: Add org as a foreign key
 -- Table to store graph information
 CREATE TABLE app_data.graph_info (
     -- Graph id created by the application, must start with _ or letter to pass to AGE
-    app_graphid text PRIMARY KEY,
+    graph_id text PRIMARY KEY,
     org_id UUID NOT NULL REFERENCES app_data.org(id),
     name text NOT NULL,
     description text,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
-    UNIQUE (app_graphid),
+    UNIQUE (graph_id),
     CHECK (name <> '')
 );
-CREATE INDEX idx_app_graphid ON app_data.graph_info (app_graphid);
+CREATE INDEX idx_graph_id ON app_data.graph_info (graph_id);
 
 -- Table to store graph and user relationship
 CREATE TABLE app_data.graph_member (
-    app_graphid text NOT NULL REFERENCES app_data.graph_info(app_graphid),
+    graph_id text NOT NULL REFERENCES app_data.graph_info(graph_id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES app_data.user(id),
     role text NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
-    PRIMARY KEY (app_graphid, user_id),
+    PRIMARY KEY (graph_id, user_id),
     CHECK (role <> '')
 );
+CREATE INDEX idx_graph_member_user_id ON app_data.graph_member (user_id);
+CREATE INDEX idx_graph_member_graph_id ON app_data.graph_member (graph_id);
 
 -- Table to store node types
 CREATE TABLE IF NOT EXISTS app_data.node_types (
-    app_graphid text NOT NULL REFERENCES app_data.graph_info(app_graphid),
-    type_name TEXT NOT NULL,
-    display_name TEXT NOT NULL,
+    id TEXT NOT NULL PRIMARY KEY,
+    graph_id TEXT NOT NULL REFERENCES app_data.graph_info(graph_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
     description TEXT NOT NULL,
-    created_by UUID NOT NULL,
+    created_by UUID NOT NULL REFERENCES app_data.user(id),
     created_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (app_graphid, type_name)
+    UNIQUE(graph_id, normalized_name)
 );
+CREATE INDEX idx_node_types_graph_id ON app_data.node_types (graph_id);
+CREATE INDEX idx_node_types ON app_data.node_types (graph_id, normalized_name);
 
 -- Table to store node type attributes
 CREATE TABLE IF NOT EXISTS app_data.node_type_attributes (
-    app_graphid text NOT NULL REFERENCES app_data.graph_info(app_graphid),
-    type_name TEXT NOT NULL,
-    attribute_name TEXT NOT NULL,
+    id UUID PRIMARY KEY,
+    type_id TEXT NOT NULL REFERENCES app_data.node_types(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
     data_type TEXT NOT NULL,
     required BOOLEAN NOT NULL DEFAULT false,
     description TEXT,
-    PRIMARY KEY (app_graphid, type_name, attribute_name),
-    FOREIGN KEY (app_graphid, type_name) REFERENCES app_data.node_types(app_graphid, type_name) ON DELETE CASCADE
+    UNIQUE(type_id, normalized_name)
 );
+-- Add index for attribute lookups by type
+CREATE INDEX idx_node_type_attributes_type_id ON app_data.node_type_attributes(type_id);
