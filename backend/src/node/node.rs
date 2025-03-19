@@ -49,6 +49,7 @@ impl Node {
     }
 
     fn from_request(
+        // TODO: Add validation
         request: CreateNodeRequest,
         graph_id: String,
     ) -> Result<Self, serde_json::Error> {
@@ -155,6 +156,10 @@ impl Node {
             &node.graph_id, &node.node_type, &props_clause
         );
 
+        info!(
+            "Creating node in graph: {}, by: {}",
+            &node.graph_id, created_by
+        );
         sqlx::query(&query).fetch_one(&*pool).await?;
         Ok(())
     }
