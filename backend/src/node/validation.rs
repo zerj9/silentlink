@@ -1,16 +1,21 @@
-pub async fn validate_vertex_properties(
+use super::AttributeDefinition;
+use crate::error::ApiError;
+use sqlx::PgPool;
+use tracing::error;
+
+pub async fn validate_node_properties(
     pool: &PgPool,
     graph_id: &str,
     type_name: &str,
     properties: &serde_json::Value,
 ) -> Result<(), ApiError> {
     // Get all attributes for this node type
-    let attributes = sqlx::query!(
+    let attributes = sqlx::query_as::<_, AttributeDefinition>(
         "SELECT attribute_name, data_type, required FROM node_type_attributes 
          WHERE graph_id = $1 AND type_name = $2",
-        graph_id,
-        type_name
     )
+    .bind(graph_id)
+    .bind(type_name)
     .fetch_all(pool)
     .await
     .map_err(|e| {
@@ -21,33 +26,49 @@ pub async fn validate_vertex_properties(
     if let serde_json::Value::Object(prop_map) = properties {
         // Check for required attributes
         for attr in &attributes {
-            if attr.required && !prop_map.contains_key(&attr.attribute_name) {
+            if attr.required && !prop_map.contains_key(&attr.name) {
                 return Err(ApiError::BadRequest(format!(
                     "Required attribute '{}' is missing",
-                    attr.attribute_name
+                    attr.name
                 )));
             }
 
             // You could also add type validation here
-            if let Some(value) = prop_map.get(&attr.attribute_name) {
-                match attr.data_type.as_str() {
-                    "String" => {
+            if let Some(value) = prop_map.get(&attr.name) {
+                match attr.data_type.as_ref() {
+                    "string" => {
                         if !value.is_string() {
                             return Err(ApiError::BadRequest(format!(
                                 "Attribute '{}' must be a string",
-                                attr.attribute_name
+                                attr.name
                             )));
                         }
                     }
-                    "Number" => {
+                    "number" => {
                         if !value.is_number() {
                             return Err(ApiError::BadRequest(format!(
                                 "Attribute '{}' must be a number",
-                                attr.attribute_name
+                                attr.name
                             )));
                         }
                     }
-                    // Add other type validations as needed
+                    "boolean" => {
+                        if !value.is_boolean() {
+                            return Err(ApiError::BadRequest(format!(
+                                "Attribute '{}' must be a boolean",
+                                attr.name
+                            )));
+                        }
+                    }
+                    "date" => {
+                        // Basic validation for date strings
+                        if !value.is_string() {
+                            return Err(ApiError::BadRequest(format!(
+                                "Attribute '{}' must be a date string",
+                                attr.name
+                            )));
+                        }
+                    }
                     _ => {}
                 }
             }

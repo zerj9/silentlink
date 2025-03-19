@@ -1,3 +1,4 @@
+use super::Role;
 use crate::auth::Auth;
 use crate::config::AppState;
 use crate::error::ApiError;
@@ -12,8 +13,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{error, info};
 use uuid::Uuid;
-
-use super::Role;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateOrgRequest {
@@ -177,7 +176,7 @@ pub async fn get_org_members(
 
     let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
         error!("Failed to fetch org: {:?}", e);
-        ApiError::InternalServerError
+        ApiError::Unauthorized
     })?;
 
     // Check that the reqesting user is org member

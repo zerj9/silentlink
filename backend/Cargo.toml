@@ -11,6 +11,7 @@ axum-extra = { version = "0.9.6", features = ["cookie", "typed-header"] }
 base64 = "0.22.1"
 chrono = "0.4.39"
 dotenvy = "0.15.7"
+futures = "0.3.31"
 lazy_static = "1.5.0"
 maplit = "1.0.2"
 oauth2 = "5.0.0"

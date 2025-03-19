@@ -1,24 +1,142 @@
+use super::NewAttributeDefinition;
+use crate::utils::create_id;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgRow;
-use sqlx::{FromRow, Row};
+use sqlx::{FromRow, Postgres, Row, Transaction};
 use strum_macros::{AsRefStr, Display, EnumString};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodeType {
-    pub type_name: String,
-    pub display_name: String,
+    pub id: String,
+    pub graph_id: String,
+    pub name: String,
+    pub normalized_name: String,
     pub description: String,
     pub created_by: Uuid,
     pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl NodeType {
+    pub fn new(
+        graph_id: &str,
+        name: &str,
+        description: String,
+        created_by: Uuid,
+    ) -> Result<Self, String> {
+        // Validate that type_name contains only letters and spaces
+        if !name.chars().all(|c| c.is_alphabetic() || c.is_whitespace()) {
+            return Err(format!("Node type name '{}' contains invalid characters. Only letters and spaces are allowed.", name));
+        }
+
+        // Validate that type_name is not empty
+        if name.trim().is_empty() {
+            return Err("Node name cannot be empty.".to_string());
+        }
+
+        let now = chrono::Utc::now();
+        // Convert name to uppercase and replace spaces with underscores
+        let normalized_name = name.to_uppercase().replace(' ', "_");
+
+        Ok(Self {
+            id: format!("v{}", create_id(8)),
+            graph_id: graph_id.to_string(),
+            name: name.to_string(),
+            normalized_name,
+            created_by,
+            created_at: now,
+            description,
+        })
+    }
+
+    pub async fn save(
+        &self,
+        pool: &sqlx::PgPool,
+        transaction: &mut Transaction<'_, Postgres>,
+    ) -> Result<(), sqlx::Error> {
+        // In AGE, node types are implemented as vertex labels
+        let age_query = "SELECT ag_catalog.create_vlabel($1, $2)";
+        sqlx::query(age_query)
+            .bind(&self.graph_id)
+            .bind(&self.normalized_name)
+            .execute(&mut **transaction)
+            .await?;
+
+        // Store node type metadata
+        let insert_node_type_meta = "
+        INSERT INTO app_data.node_types (
+            id,
+            graph_id, 
+            name, 
+            normalized_name,
+            description, 
+            created_by, 
+            created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)";
+
+        sqlx::query(insert_node_type_meta)
+            .bind(&self.id)
+            .bind(&self.graph_id)
+            .bind(&self.name)
+            .bind(&self.normalized_name)
+            .bind(&self.description)
+            .bind(&self.created_by)
+            .bind(&self.created_at)
+            .execute(pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn from_id(
+        pool: &sqlx::PgPool,
+        graph_id: &str,
+        node_type_id: &str,
+    ) -> Result<Self, sqlx::Error> {
+        let query = r#"
+            SELECT * FROM app_data.node_types
+            WHERE graph_id = $1 AND id = $2
+        "#;
+
+        let node_type = sqlx::query_as::<_, NodeType>(query)
+            .bind(graph_id)
+            .bind(node_type_id)
+            .fetch_one(pool)
+            .await?;
+
+        Ok(node_type)
+    }
+
+    pub async fn from_name(
+        pool: &sqlx::PgPool,
+        graph_id: &str,
+        name: &str,
+    ) -> Result<Self, sqlx::Error> {
+        let query = r#"
+            SELECT * FROM app_data.node_types
+            WHERE graph_id = $1 AND normalized_name = $2
+        "#;
+
+        let normalized_name = name.to_uppercase().replace(' ', "_");
+
+        let node_type = sqlx::query_as::<_, NodeType>(query)
+            .bind(graph_id)
+            .bind(normalized_name)
+            .fetch_one(pool)
+            .await?;
+
+        Ok(node_type)
+    }
 }
 
 // Implement FromRow for NodeType
 impl<'r> FromRow<'r, PgRow> for NodeType {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         Ok(Self {
-            type_name: row.try_get("type_name")?,
-            display_name: row.try_get("display_name")?,
+            id: row.try_get("id")?,
+            graph_id: row.try_get("graph_id")?,
+            name: row.try_get("name")?,
+            normalized_name: row.try_get("normalized_name")?,
             description: row.try_get("description")?,
             created_by: row.try_get("created_by")?,
             created_at: row.try_get("created_at")?,
@@ -28,10 +146,57 @@ impl<'r> FromRow<'r, PgRow> for NodeType {
 
 #[derive(Debug, Deserialize)]
 pub struct AttributeDefinition {
+    pub id: Uuid,
+    pub type_id: String,
     pub name: String,
+    pub normalized_name: String,
     pub data_type: AttributeDataType,
     pub required: bool,
-    pub description: Option<String>,
+    pub description: String,
+}
+
+impl AttributeDefinition {
+    pub fn from_request(req: &NewAttributeDefinition, type_id: &str) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            type_id: type_id.to_string(),
+            name: req.name.clone(),
+            normalized_name: req.name.to_lowercase().replace(' ', "_"),
+            data_type: req.data_type.clone(),
+            required: req.required,
+            description: req.description.clone(),
+        }
+    }
+
+    pub async fn save(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+    ) -> Result<(), sqlx::Error> {
+        let insert_query = r#"
+            INSERT INTO app_data.node_type_attributes (
+                id,
+                type_id,
+                name,
+                normalized_name,
+                data_type,
+                required,
+                description
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        "#;
+
+        sqlx::query(insert_query)
+            .bind(&self.id)
+            .bind(&self.type_id)
+            .bind(&self.name)
+            .bind(&self.normalized_name)
+            .bind(&self.data_type.to_string())
+            .bind(&self.required)
+            .bind(&self.description)
+            .execute(&mut **transaction)
+            .await?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Display, EnumString, AsRefStr)]
@@ -54,7 +219,10 @@ impl<'r> FromRow<'r, PgRow> for AttributeDefinition {
             .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
         Ok(Self {
+            id: row.try_get("id")?,
+            type_id: row.try_get("type_id")?,
             name: row.try_get("name")?,
+            normalized_name: row.try_get("normalized_name")?,
             data_type,
             required: row.try_get("required")?,
             description: row.try_get("description")?,
