@@ -47,7 +47,7 @@ pub async fn create_graph(
 
     let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
         error!("Failed to fetch organization: {:?}", e);
-        ApiError::InternalServerError
+        ApiError::Unauthorized
     })?;
 
     // Check that the user is a member of the organization
@@ -56,7 +56,7 @@ pub async fn create_graph(
         .await
         .map_err(|e| {
             error!("Failed to fetch org member: {:?}", e);
-            ApiError::InternalServerError
+            ApiError::Unauthorized
         })?
         .map_or_else(
             || {
@@ -89,7 +89,10 @@ pub async fn create_graph(
         ApiError::InternalServerError
     })?;
 
-    Ok(Json(serde_json::json!({})))
+    // Return Graph ID
+    Ok(Json(serde_json::json!({
+        "id": graph_info.graph_id,
+    })))
 }
 
 pub async fn get_graphs(
@@ -105,7 +108,7 @@ pub async fn get_graphs(
 
     let org = Org::from_id(&state.pool, &org_id).await.map_err(|e| {
         error!("Failed to fetch organization: {:?}", e);
-        ApiError::InternalServerError
+        ApiError::Unauthorized
     })?;
 
     // Check that the user is a member of the organization
@@ -114,7 +117,7 @@ pub async fn get_graphs(
         .await
         .map_err(|e| {
             error!("Failed to fetch org member: {:?}", e);
-            ApiError::InternalServerError
+            ApiError::Unauthorized
         })?
         .map_or_else(
             || {
@@ -139,7 +142,7 @@ pub async fn get_graphs(
         .iter()
         .map(|g| {
             serde_json::json!({
-                "id": g.app_graphid,
+                "id": g.graph_id,
                 "name": g.name,
                 "description": g.description.as_deref().unwrap_or(""),
             })
@@ -198,7 +201,7 @@ pub async fn get_graph(
     }
 
     let response = serde_json::json!({
-        "id": graph.app_graphid,
+        "id": graph.graph_id,
         "name": graph.name,
         "description": graph.description.as_deref().unwrap_or(""),
     });
