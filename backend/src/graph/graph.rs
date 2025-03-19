@@ -12,7 +12,7 @@ pub enum GraphRole {
 }
 
 pub struct GraphMember {
-    pub app_graphid: String,
+    pub graph_id: String,
     pub user_id: Uuid,
     pub role: GraphRole,
     pub created_at: chrono::DateTime<chrono::Utc>,
@@ -20,10 +20,10 @@ pub struct GraphMember {
 }
 
 impl GraphMember {
-    pub fn new(app_graphid: String, user_id: Uuid, role: GraphRole) -> Self {
+    pub fn new(graph_id: String, user_id: Uuid, role: GraphRole) -> Self {
         let now = chrono::Utc::now();
         Self {
-            app_graphid,
+            graph_id,
             user_id,
             role,
             created_at: now,
@@ -36,7 +36,7 @@ pub struct GraphInfo {
     // Unique randomly generated identifier for the graph name to pass to AGE
     // AGE graph names are unique. This allows us to have multiple graphs with the same name
     // Has to start with a letter
-    pub app_graphid: String,
+    pub graph_id: String,
     pub org_id: Uuid,
     pub name: String,
     pub description: Option<String>,
@@ -48,7 +48,7 @@ pub struct GraphInfo {
 impl<'r> FromRow<'r, PgRow> for GraphInfo {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         Ok(Self {
-            app_graphid: row.try_get("app_graphid")?,
+            graph_id: row.try_get("graph_id")?,
             org_id: row.try_get("org_id")?,
             name: row.try_get("name")?,
             description: row.try_get("description")?,
@@ -80,7 +80,7 @@ impl GraphInfo {
         }
 
         Ok(Self {
-            app_graphid: graph_id,
+            graph_id: graph_id,
             org_id: org.id,
             name: name.to_string(),
             description: description.map(|s| s.to_string()),
@@ -96,16 +96,16 @@ impl GraphInfo {
         // Create the graph in AGE
         let age_query = "SELECT ag_catalog.create_graph($1)";
         sqlx::query(age_query)
-            .bind(&self.app_graphid)
+            .bind(&self.graph_id)
             .execute(&mut *transaction)
             .await?;
 
         // Insert the graph info into the database
         let graph_info_query =
-            "INSERT INTO app_data.graph_info (app_graphid, org_id, name, description, created_at, updated_at)
+            "INSERT INTO app_data.graph_info (graph_id, org_id, name, description, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6)";
         sqlx::query(graph_info_query)
-            .bind(&self.app_graphid)
+            .bind(&self.graph_id)
             .bind(&self.org_id)
             .bind(&self.name)
             .bind(&self.description)
@@ -114,14 +114,13 @@ impl GraphInfo {
             .execute(&mut *transaction)
             .await?;
 
-        let graph_member =
-            GraphMember::new(self.app_graphid.clone(), admin_user.id, GraphRole::Admin);
+        let graph_member = GraphMember::new(self.graph_id.clone(), admin_user.id, GraphRole::Admin);
 
         let graph_member_query =
-            "INSERT INTO app_data.graph_member (app_graphid, user_id, role, created_at, updated_at)
+            "INSERT INTO app_data.graph_member (graph_id, user_id, role, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5)";
         sqlx::query(&graph_member_query)
-            .bind(&graph_member.app_graphid)
+            .bind(&graph_member.graph_id)
             .bind(&graph_member.user_id)
             .bind(&graph_member.role.to_string())
             .bind(&graph_member.created_at)
@@ -143,18 +142,18 @@ impl GraphInfo {
         Ok(graphs)
     }
 
-    pub async fn from_id(pool: &sqlx::PgPool, app_graphid: &str) -> Result<Self, sqlx::Error> {
-        let query = "SELECT * FROM app_data.graph_info WHERE app_graphid = $1";
+    pub async fn from_id(pool: &sqlx::PgPool, graph_id: &str) -> Result<Self, sqlx::Error> {
+        let query = "SELECT * FROM app_data.graph_info WHERE graph_id = $1";
         sqlx::query_as::<_, GraphInfo>(query)
-            .bind(app_graphid)
+            .bind(graph_id)
             .fetch_one(pool)
             .await
     }
 
     pub async fn get_node_types(&self, pool: &sqlx::PgPool) -> Result<Vec<NodeType>, sqlx::Error> {
-        let query = "SELECT * FROM app_data.node_types WHERE app_graphid = $1";
+        let query = "SELECT * FROM app_data.node_types WHERE graph_id = $1";
         let rows = sqlx::query_as::<_, NodeType>(query)
-            .bind(&self.app_graphid)
+            .bind(&self.graph_id)
             .fetch_all(pool)
             .await?;
         Ok(rows)
