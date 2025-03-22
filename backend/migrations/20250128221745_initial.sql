@@ -166,3 +166,31 @@ CREATE TABLE IF NOT EXISTS app_data.node_type_attributes (
 );
 -- Add index for attribute lookups by type
 CREATE INDEX idx_node_type_attributes_type_id ON app_data.node_type_attributes(type_id);
+
+-- Table to store edge types
+CREATE TABLE IF NOT EXISTS app_data.edge_type (
+    id TEXT NOT NULL PRIMARY KEY,
+    graph_id TEXT NOT NULL REFERENCES app_data.graph_info(graph_id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    created_by UUID NOT NULL REFERENCES app_data.user(id),
+    created_at TIMESTAMPTZ NOT NULL,
+    UNIQUE(graph_id, normalized_name)
+);
+CREATE INDEX idx_edge_type_graph_id ON app_data.edge_type (graph_id);
+CREATE INDEX idx_edge_type ON app_data.edge_type (graph_id, normalized_name);
+
+-- Table to store edge type attributes
+CREATE TABLE IF NOT EXISTS app_data.edge_type_attribute (
+    id UUID PRIMARY KEY,
+    type_id TEXT NOT NULL REFERENCES app_data.edge_type(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    data_type TEXT NOT NULL,
+    required BOOLEAN NOT NULL DEFAULT false,
+    description TEXT,
+    UNIQUE(type_id, normalized_name)
+);
+-- Add index for attribute lookups by type
+CREATE INDEX idx_edge_type_attribute_type_id ON app_data.edge_type_attribute(type_id);
