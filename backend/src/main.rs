@@ -96,6 +96,7 @@ async fn main() {
         .route("/orgs/:id/graphs", post(graph::create_graph))
         .route("/orgs/:id/graphs", get(graph::get_graphs))
         .route("/graphs/:graph_id", get(graph::get_graph))
+        // Node endpoints
         .route(
             "/graphs/:graph_id/meta/node_types",
             post(node::create_node_type),
@@ -104,6 +105,9 @@ async fn main() {
             "/graphs/:graph_id/meta/node_types",
             get(node::get_node_types),
         )
+        .route("/graphs/:graph_id/nodes", post(node::create_node))
+        .route("/graphs/:graph_id/nodes", get(node::get_nodes))
+        // Edge endpoints
         .route(
             "/graphs/:graph_id/meta/edge_types",
             post(edge::create_edge_type),
@@ -112,8 +116,6 @@ async fn main() {
             "/graphs/:graph_id/meta/edge_types",
             get(edge::get_edge_types),
         )
-        .route("/graphs/:graph_id/nodes", post(node::create_node))
-        .route("/graphs/:graph_id/nodes", get(node::get_nodes))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,

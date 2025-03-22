@@ -17,6 +17,23 @@ pub struct NodeType {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NodeTypeSummary {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+}
+
+impl From<&NodeType> for NodeTypeSummary {
+    fn from(node_type: &NodeType) -> Self {
+        Self {
+            id: node_type.id.clone(),
+            name: node_type.name.clone(),
+            description: node_type.description.clone(),
+        }
+    }
+}
+
 impl NodeType {
     pub fn new(
         graph_id: &str,
@@ -34,17 +51,13 @@ impl NodeType {
             return Err("Node name cannot be empty.".to_string());
         }
 
-        let now = chrono::Utc::now();
-        // Convert name to uppercase and replace spaces with underscores
-        let normalized_name = name.to_uppercase().replace(' ', "_");
-
         Ok(Self {
             id: format!("v{}", create_id(8)),
             graph_id: graph_id.to_string(),
             name: name.to_string(),
-            normalized_name,
+            normalized_name: crate::utils::normalize(name),
             created_by,
-            created_at: now,
+            created_at: chrono::Utc::now(),
             description,
         })
     }
@@ -116,11 +129,9 @@ impl NodeType {
             WHERE graph_id = $1 AND normalized_name = $2
         "#;
 
-        let normalized_name = name.to_uppercase().replace(' ', "_");
-
         let node_type = sqlx::query_as::<_, NodeType>(query)
             .bind(graph_id)
-            .bind(normalized_name)
+            .bind(crate::utils::normalize(&name))
             .fetch_one(pool)
             .await?;
 
@@ -160,7 +171,7 @@ impl AttributeDefinition {
             id: Uuid::new_v4(),
             type_id: type_id.to_string(),
             name: req.name.clone(),
-            normalized_name: req.name.to_lowercase().replace(' ', "_"),
+            normalized_name: crate::utils::normalize(&req.name),
             data_type: req.data_type.clone(),
             required: req.required,
             description: req.description.clone(),

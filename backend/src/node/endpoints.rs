@@ -1,6 +1,6 @@
 use super::node_types;
 use super::AttributeDataType;
-use super::NodeType;
+use super::{NodeType, NodeTypeSummary};
 use crate::auth::Auth;
 use crate::config::AppState;
 use crate::error::ApiError;
@@ -87,8 +87,6 @@ pub async fn create_node_type(
     // User is an admin of the org, proceed with creating the node type
     //
 
-    // TODO: Check if the node type name is unique for the graph - case insensitive
-    // Uppercase the label name
     let node_type = node_types::NodeType::new(
         &graph_info.graph_id,
         &payload.name,
@@ -186,7 +184,13 @@ pub async fn get_node_types(
         ApiError::InternalServerError
     })?;
 
-    Ok(Json(serde_json::json!(node_types)))
+    // Summarize the node types, From<NodeType> for NodeTypeSummary exists
+    let node_type_summaries: Vec<NodeTypeSummary> = node_types
+        .iter()
+        .map(|node_type| NodeTypeSummary::from(node_type))
+        .collect();
+
+    Ok(Json(serde_json::json!(node_type_summaries)))
 }
 
 #[derive(Debug, Validate, Deserialize)]
