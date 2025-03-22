@@ -18,50 +18,6 @@ struct Edge {
     properties: HashMap<String, JsonValue>,
 }
 
-#[derive(Debug, Clone, Deserialize, Display, EnumString, AsRefStr)]
-#[strum(serialize_all = "lowercase")]
-#[serde(rename_all = "lowercase")]
-pub enum AttributeDataType {
-    String,
-    Number,
-    Boolean,
-    Date,
-    // Add other types as needed
-}
-
-#[derive(Debug, Deserialize)]
-pub struct NewEdgeAttributeDefinition {
-    pub name: String,
-    pub data_type: AttributeDataType,
-    pub required: bool,
-    pub description: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateEdgeTypeRequest {
-    pub name: String,
-    pub description: String,
-    pub attributes: Vec<NewEdgeAttributeDefinition>,
-}
-
-pub async fn create_edge_label(
-    State(state): State<AppState>,
-    Json(payload): Json<CreateEdgeTypeRequest>,
-) -> Result<Json<()>, ApiError> {
-    // Validate the label name before proceeding
-    //payload.validate()?;
-
-    let age_query = "SELECT ag_catalog.create_elabel($1, $2)";
-    sqlx::query(age_query)
-        .bind("")
-        //.bind(&payload.graph_name)
-        .bind(&payload.name)
-        .execute(&*state.pool)
-        .await?;
-
-    Ok(Json(()))
-}
-
 #[derive(Debug, Validate, Deserialize)]
 pub struct CreateEdgeRequest {
     #[validate(length(min = 1, max = 50))]

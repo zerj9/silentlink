@@ -1,4 +1,4 @@
-use super::EdgeAttributeDefinition;
+use super::{EdgeTypeAttributeDefinition, NewEdgeTypeAttributeDefinition};
 use crate::auth::Auth;
 use crate::config::AppState;
 use crate::edge::EdgeType;
@@ -17,7 +17,7 @@ use tracing::{error, info};
 pub struct CreateEdgeTypeRequest {
     pub name: String,
     pub description: String,
-    pub attributes: Vec<EdgeAttributeDefinition>,
+    pub attributes: Vec<NewEdgeTypeAttributeDefinition>,
 }
 
 pub async fn create_edge_type(
@@ -72,8 +72,22 @@ pub async fn create_edge_type(
 
     // TODO: Check if the edge type name is unique for the graph - case insensitive
     // Uppercase the label name
-    let type_name = payload.name.to_uppercase();
-    let edge_type = EdgeType::new(&type_name, &payload.name, &payload.description, &user.id);
+    let edge_type = EdgeType::new(
+        &graph_info.graph_id,
+        &payload.name,
+        payload.description,
+        user.id,
+    )
+    .map_err(|e| {
+        error!("Failed to create edge type: {}", e);
+        ApiError::BadRequest("Invalid edge type configuration".to_string())
+    })?;
+
+    let existing_edge_type =
+        EdgeType::from_name(&state.pool, &graph_info.graph_id, &edge_type.name).await;
+    if existing_edge_type.is_ok() {
+        return Err(ApiError::BadRequest("Edge type already exists".to_string()));
+    };
 
     // Start a transaction
     let mut transaction: Transaction<Postgres> = state.pool.begin().await.map_err(|e| {
@@ -82,70 +96,18 @@ pub async fn create_edge_type(
     })?;
 
     info!("Creating edge type for graph: {}", graph_info.name);
-    let age_query = "SELECT ag_catalog.create_elabel($1, $2)";
-    sqlx::query(age_query)
-        .bind(&graph_info.graph_id)
-        .bind(&type_name)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|e| {
-            error!("Failed to execute CREATE edge label query: {}", e);
+    edge_type.save(&mut transaction).await.map_err(|e| {
+        error!("Failed to save edge type: {}", e);
+        ApiError::InternalServerError
+    })?;
+
+    // TODO: Save attributes for the edge type
+    for new_attr in &payload.attributes {
+        let attr = EdgeTypeAttributeDefinition::from_request(&new_attr, &edge_type.id);
+        attr.save(&mut transaction).await.map_err(|e| {
+            error!("Failed to save edge attribute: {}", e);
             ApiError::InternalServerError
         })?;
-
-    info!(
-        "Storing edge type metadata in database for graph: {}",
-        graph_info.name
-    );
-    // Store edge type metadata
-    let insert_type = "
-        INSERT INTO app_data.edge_types (
-            graph_id, 
-            type_name, 
-            display_name,
-            description, 
-            created_by, 
-            created_at
-        ) VALUES ($1, $2, $3, $4, $5, NOW())";
-
-    sqlx::query(insert_type)
-        .bind(&graph_id)
-        .bind(&type_name)
-        .bind(&payload.name) // Original case for display_name
-        .bind(&payload.description)
-        .bind(user.id)
-        .execute(&mut *transaction)
-        .await
-        .map_err(|e| {
-            error!("Failed to insert edge type metadata: {}", e);
-            ApiError::InternalServerError
-        })?;
-
-    // Store attributes for this edge type
-    for attr in &payload.attributes {
-        let insert_attr = "
-            INSERT INTO app_data.edge_type_attributes (
-                graph_id,
-                type_name,
-                attribute_name,
-                data_type,
-                required,
-                description
-            ) VALUES ($1, $2, $3, $4, $5, $6)";
-
-        sqlx::query(insert_attr)
-            .bind(&graph_id)
-            .bind(&type_name)
-            .bind(&attr.name)
-            .bind(&attr.data_type.to_string())
-            .bind(attr.required)
-            .bind(&attr.description)
-            .execute(&mut *transaction)
-            .await
-            .map_err(|e| {
-                error!("Failed to insert edge type attribute: {}", e);
-                ApiError::InternalServerError
-            })?;
     }
 
     // Commit the transaction
@@ -197,12 +159,10 @@ pub async fn get_edge_types(
     }
 
     // Fetch all edge types for the graph
-    let edge_types = EdgeType::get_all(&state.pool, &graph_id)
-        .await
-        .map_err(|e| {
-            error!("Failed to fetch edge types: {}", e);
-            ApiError::InternalServerError
-        })?;
+    let edge_types = EdgeType::list(&state.pool, &graph_id).await.map_err(|e| {
+        error!("Failed to fetch edge types: {}", e);
+        ApiError::InternalServerError
+    })?;
 
     Ok(Json(edge_types))
 }

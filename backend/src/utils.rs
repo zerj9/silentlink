@@ -12,6 +12,10 @@ pub fn create_id(length: u64) -> String {
     code.to_uppercase()
 }
 
+pub fn normalize(text: &str) -> String {
+    text.to_uppercase().replace(" ", "_")
+}
+
 pub fn generate_props_clause(properties: &HashMap<String, Value>) -> String {
     let prop_strings: Vec<String> = properties
         .iter()
