@@ -141,7 +141,7 @@ impl<'r> FromRow<'r, PgRow> for EdgeType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Display, EnumString, AsRefStr)]
+#[derive(Debug, Clone, Deserialize, Serialize, Display, EnumString, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum EdgeTypeAttributeDataType {
@@ -211,5 +211,37 @@ impl EdgeTypeAttributeDefinition {
             .await?;
 
         Ok(())
+    }
+
+    pub async fn from_edge_type(
+        pool: &sqlx::PgPool,
+        edge_type_id: &str,
+    ) -> Result<Vec<EdgeTypeAttributeDefinition>, sqlx::Error> {
+        let query = "SELECT * FROM app_data.edge_type_attribute WHERE type_id = $1";
+        let rows = sqlx::query_as::<_, EdgeTypeAttributeDefinition>(query)
+            .bind(edge_type_id)
+            .fetch_all(pool)
+            .await?;
+        Ok(rows)
+    }
+}
+
+// Implement FromRow for EdgeTypeAttributeDefinition
+impl<'r> FromRow<'r, PgRow> for EdgeTypeAttributeDefinition {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let data_type_str: String = row.try_get("data_type")?;
+        let data_type: EdgeTypeAttributeDataType = data_type_str
+            .parse()
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+
+        Ok(Self {
+            id: row.try_get("id")?,
+            type_id: row.try_get("type_id")?,
+            name: row.try_get("name")?,
+            normalized_name: row.try_get("normalized_name")?,
+            data_type,
+            required: row.try_get("required")?,
+            description: row.try_get("description")?,
+        })
     }
 }

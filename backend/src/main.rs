@@ -120,6 +120,10 @@ async fn main() {
             "/graphs/:graph_id/meta/edge_types",
             get(edge::get_edge_types),
         )
+        .route(
+            "/graphs/:graph_id/meta/edge_types/:edge_type_id",
+            get(edge::get_edge_type),
+        )
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth::auth_middleware,
