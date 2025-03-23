@@ -71,17 +71,11 @@ pub async fn create_edge_type(
     //
 
     // TODO: Check if the edge type name is unique for the graph - case insensitive
-    // Uppercase the label name
-    let edge_type = EdgeType::new(
-        &graph_info.graph_id,
-        &payload.name,
-        payload.description,
-        user.id,
-    )
-    .map_err(|e| {
-        error!("Failed to create edge type: {}", e);
-        ApiError::BadRequest("Invalid edge type configuration".to_string())
-    })?;
+    let edge_type =
+        EdgeType::from_request(&payload, &graph_info.graph_id, user.id).map_err(|e| {
+            error!("Failed to create edge type: {}", e);
+            ApiError::BadRequest("Invalid edge type configuration".to_string())
+        })?;
 
     let existing_edge_type =
         EdgeType::from_name(&state.pool, &graph_info.graph_id, &edge_type.name).await;
@@ -101,7 +95,6 @@ pub async fn create_edge_type(
         ApiError::InternalServerError
     })?;
 
-    // TODO: Save attributes for the edge type
     for new_attr in &payload.attributes {
         let attr = EdgeTypeAttributeDefinition::from_request(&new_attr, &edge_type.id);
         attr.save(&mut transaction).await.map_err(|e| {

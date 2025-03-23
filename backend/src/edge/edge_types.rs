@@ -50,12 +50,12 @@ impl EdgeType {
         })
     }
 
-    pub async fn from_request(
-        req: CreateEdgeTypeRequest,
+    pub fn from_request(
+        req: &CreateEdgeTypeRequest,
         graph_id: &str,
         created_by: Uuid,
     ) -> Result<Self, String> {
-        let edge_type = Self::new(graph_id, &req.name, req.description, created_by)?;
+        let edge_type = Self::new(graph_id, &req.name, req.description.clone(), created_by)?;
         Ok(edge_type)
     }
 

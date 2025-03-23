@@ -1,12 +1,7 @@
-use crate::config::AppState;
-use crate::error::ApiError;
-//use crate::label::CreateLabelRequest;
 use crate::utils::{validate_label, validate_properties};
-use axum::{extract::State, Json};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
-use strum_macros::{AsRefStr, Display, EnumString};
 use validator::{Validate, ValidationError};
 
 #[derive(Debug, Serialize, Deserialize)]
