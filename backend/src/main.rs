@@ -105,6 +105,10 @@ async fn main() {
             "/graphs/:graph_id/meta/node_types",
             get(node::get_node_types),
         )
+        .route(
+            "/graphs/:graph_id/meta/node_types/:node_type_id",
+            get(node::get_node_type),
+        )
         .route("/graphs/:graph_id/nodes", post(node::create_node))
         .route("/graphs/:graph_id/nodes", get(node::get_nodes))
         // Edge endpoints

@@ -154,18 +154,18 @@ impl<'r> FromRow<'r, PgRow> for NodeType {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct AttributeDefinition {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct NodeTypeAttributeDefinition {
     pub id: Uuid,
     pub type_id: String,
     pub name: String,
     pub normalized_name: String,
-    pub data_type: AttributeDataType,
+    pub data_type: NodeTypeAttributeDataType,
     pub required: bool,
     pub description: String,
 }
 
-impl AttributeDefinition {
+impl NodeTypeAttributeDefinition {
     pub fn from_request(req: &NewAttributeDefinition, type_id: &str) -> Self {
         Self {
             id: Uuid::new_v4(),
@@ -207,12 +207,34 @@ impl AttributeDefinition {
 
         Ok(())
     }
+
+    pub async fn from_node_type(
+        pool: &sqlx::PgPool,
+        node_type: &NodeType,
+    ) -> Result<Vec<NodeTypeAttributeDefinition>, sqlx::Error> {
+        let query = r#"
+            SELECT * FROM app_data.node_type_attributes
+            WHERE type_id = $1
+        "#;
+
+        let rows = sqlx::query(query)
+            .bind(node_type.id.clone())
+            .fetch_all(pool)
+            .await?;
+
+        let attributes: Vec<NodeTypeAttributeDefinition> = rows
+            .iter()
+            .map(|row| NodeTypeAttributeDefinition::from_row(row).unwrap())
+            .collect();
+
+        Ok(attributes)
+    }
 }
 
-#[derive(Debug, Clone, Deserialize, Display, EnumString, AsRefStr)]
+#[derive(Debug, Clone, Deserialize, Serialize, Display, EnumString, AsRefStr)]
 #[strum(serialize_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
-pub enum AttributeDataType {
+pub enum NodeTypeAttributeDataType {
     String,
     Number,
     Boolean,
@@ -221,10 +243,10 @@ pub enum AttributeDataType {
 }
 
 // Implement FromRow for AttributeDefinition
-impl<'r> FromRow<'r, PgRow> for AttributeDefinition {
+impl<'r> FromRow<'r, PgRow> for NodeTypeAttributeDefinition {
     fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         let data_type_str: String = row.try_get("data_type")?;
-        let data_type: AttributeDataType = data_type_str
+        let data_type: NodeTypeAttributeDataType = data_type_str
             .parse()
             .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 
