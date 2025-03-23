@@ -80,7 +80,7 @@ impl GraphInfo {
         }
 
         Ok(Self {
-            graph_id: graph_id,
+            graph_id,
             org_id: org.id,
             name: name.to_string(),
             description: description.map(|s| s.to_string()),
