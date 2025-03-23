@@ -119,12 +119,16 @@ CREATE TABLE app_data.graph_info (
     org_id UUID NOT NULL REFERENCES app_data.org(id),
     name text NOT NULL,
     description text,
+    is_public BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     UNIQUE (graph_id),
     CHECK (name <> '')
 );
 CREATE INDEX idx_graph_id ON app_data.graph_info (graph_id);
+-- Create an index for efficiently querying public graphs
+CREATE INDEX idx_graph_public ON app_data.graph_info (is_public)
+WHERE is_public = true;
 
 -- Table to store graph and user relationship
 CREATE TABLE app_data.graph_member (
