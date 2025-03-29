@@ -1,11 +1,13 @@
 use super::{CreateNodeRequest, NodeType};
 use crate::ag::{AgType, Vertex};
+use crate::node::{NodeTypeAttributeDataType, NodeTypeAttributeDefinition};
 use crate::utils::generate_props_clause;
 use futures::future::try_join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::collections::HashMap;
-use tracing::info;
+use std::fmt;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -18,6 +20,58 @@ pub struct Node {
     graph_id: String,
     node_type: String,
     properties: HashMap<String, JsonValue>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum CreateNodeError {
+    #[error("Validation error: {0}")]
+    ValidationError(ValidationErrorList),
+
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+}
+
+#[derive(Debug)]
+pub enum AttributeValidationError {
+    MissingAttribute {
+        name: String,
+    },
+    WrongType {
+        name: String,
+        expected: &'static str,
+    },
+}
+
+impl fmt::Display for AttributeValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AttributeValidationError::MissingAttribute { name } => {
+                write!(f, "Missing attribute: {}", name)
+            }
+            AttributeValidationError::WrongType { name, expected } => {
+                write!(f, "Attribute '{}' must be of type {}", name, expected)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ValidationErrorList(pub Vec<AttributeValidationError>);
+
+impl fmt::Display for ValidationErrorList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let messages: Vec<String> = self.0.iter().map(|e| e.to_string()).collect();
+        write!(f, "{}", messages.join("; "))
+    }
+}
+
+impl IntoIterator for ValidationErrorList {
+    type Item = AttributeValidationError;
+    type IntoIter = std::vec::IntoIter<AttributeValidationError>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
 }
 
 impl Node {
@@ -136,7 +190,71 @@ impl Node {
         create_node_request: CreateNodeRequest,
         created_by: Uuid,
         graph_id: String,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), CreateNodeError> {
+        // First, fetch the NodeType
+        let node_type = NodeType::from_id(pool, &graph_id, &create_node_request.node_type).await?;
+
+        // Then, fetch all attribute definitions for this node type
+        let attributes = NodeTypeAttributeDefinition::from_node_type(pool, &node_type).await?;
+
+        let mut errors = Vec::new();
+        // Validate that all required attributes are present and valid
+        for attr in &attributes {
+            if attr.required {
+                match create_node_request.properties.get(&attr.name) {
+                    None => {
+                        errors.push(AttributeValidationError::MissingAttribute {
+                            name: attr.name.clone(),
+                        });
+                    }
+                    Some(value) => match attr.data_type {
+                        NodeTypeAttributeDataType::Number => {
+                            if !value.is_number() {
+                                errors.push(AttributeValidationError::WrongType {
+                                    name: attr.name.clone(),
+                                    expected: "number",
+                                });
+                            }
+                        }
+                        NodeTypeAttributeDataType::Boolean => {
+                            if !value.is_boolean() {
+                                errors.push(AttributeValidationError::WrongType {
+                                    name: attr.name.clone(),
+                                    expected: "boolean",
+                                });
+                            }
+                        }
+                        NodeTypeAttributeDataType::Date => {
+                            if let Some(str_val) = value.as_str() {
+                                if chrono::DateTime::parse_from_rfc3339(str_val).is_err() {
+                                    errors.push(AttributeValidationError::WrongType {
+                                        name: attr.name.clone(),
+                                        expected: "RFC3339 date string",
+                                    });
+                                }
+                            } else {
+                                errors.push(AttributeValidationError::WrongType {
+                                    name: attr.name.clone(),
+                                    expected: "RFC3339 date string",
+                                });
+                            }
+                        }
+                        NodeTypeAttributeDataType::String => {
+                            debug!("No validation needed for string type");
+                        }
+                    },
+                }
+            }
+        }
+        // If any errors were collected, return them as a typed error
+        if !errors.is_empty() {
+            return Err(CreateNodeError::ValidationError(ValidationErrorList(
+                errors,
+            )));
+        }
+
+        debug!("All attributes are valid for node type: {}", &node_type.id);
+
         let mut node = Node::from_request(create_node_request, graph_id)
             .map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
 

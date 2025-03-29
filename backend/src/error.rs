@@ -2,7 +2,7 @@ use axum::Json;
 use serde::Serialize;
 use sqlx::Error as SqlxError;
 use thiserror::Error;
-use tracing::error;
+use tracing::{debug, error};
 use validator::ValidationErrors;
 
 #[derive(Serialize)]
@@ -10,7 +10,7 @@ struct ErrorResponse {
     code: String,
     message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    details: Option<String>,
+    details: Option<Vec<String>>,
 }
 
 // TODO: Implement error handling for API
@@ -61,61 +61,74 @@ impl axum::response::IntoResponse for ApiError {
                 // Default database error response
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorResponse {
+                    Json(ErrorResponse {
                         code: "INTERNAL_SERVER_ERROR".into(),
                         message: "An internal server error occurred".into(),
                         details: None, // Don't expose internal error details
-                    },
+                    }),
                 )
             }
             ApiError::BadRequest(ref msg) => (
                 axum::http::StatusCode::BAD_REQUEST,
-                ErrorResponse {
+                Json(ErrorResponse {
                     code: "BAD_REQUEST".into(),
                     message: msg.clone(),
                     details: None,
-                },
+                }),
             ),
             ApiError::Serialization(ref e) => {
                 error!("Failed to serialize data: {}", e);
                 (
                     axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                    ErrorResponse {
+                    Json(ErrorResponse {
                         code: "SERIALIZATION_ERROR".into(),
                         message: "Failed to process data".into(),
                         details: None,
-                    },
+                    }),
                 )
             }
             ApiError::Validation(ref e) => {
-                error!("Validation error: {}", e);
+                // Log the validation error remove newlines
+                debug!("Validation error: {}", e.to_string().replace("\n", "; "));
+                let mut details = Vec::new();
+                // Iterate through field errors and push a separate string for each error.
+                for (field, errors) in e.field_errors().iter() {
+                    for error in errors.iter() {
+                        // Use the error message if available; otherwise, use the error code.
+                        let msg = error
+                            .message
+                            .clone()
+                            .unwrap_or_else(|| std::borrow::Cow::from(error.code.clone()));
+                        details.push(format!("{}: {}", field, msg));
+                    }
+                }
                 (
                     axum::http::StatusCode::BAD_REQUEST,
-                    ErrorResponse {
+                    Json(ErrorResponse {
                         code: "VALIDATION_ERROR".into(),
                         message: "Invalid input data".into(),
-                        details: Some(e.to_string()),
-                    },
+                        details: Some(details),
+                    }),
                 )
             }
             ApiError::InternalServerError => (
                 axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                ErrorResponse {
+                Json(ErrorResponse {
                     code: "INTERNAL_SERVER_ERROR".into(),
                     message: "An internal server error occurred".into(),
                     details: None,
-                },
+                }),
             ),
             ApiError::Unauthorized => (
                 axum::http::StatusCode::UNAUTHORIZED,
-                ErrorResponse {
+                Json(ErrorResponse {
                     code: "UNAUTHORIZED".into(),
                     message: "Unauthorized".into(),
                     details: None,
-                },
+                }),
             ),
         };
 
-        (status, Json(error_response)).into_response()
+        (status, error_response).into_response()
     }
 }

@@ -6,6 +6,7 @@ use crate::auth::Auth;
 use crate::config::AppState;
 use crate::error::ApiError;
 use crate::graph::GraphInfo;
+use crate::node::{AttributeValidationError, CreateNodeError};
 use crate::org::Org;
 use crate::org::Role;
 use axum::extract::Query;
@@ -313,6 +314,13 @@ pub struct CreateNodeRequest {
     pub properties: HashMap<String, JsonValue>,
 }
 
+#[derive(Serialize)]
+pub struct FieldError {
+    pub field: String,
+    pub message: String,
+}
+
+use validator::{ValidationError, ValidationErrors};
 pub async fn create_node(
     State(state): State<AppState>,
     Extension(auth): Extension<Auth>,
@@ -385,7 +393,34 @@ pub async fn create_node(
         ));
     }
 
-    Node::create(&state.pool, request, user.id, graph_info.graph_id).await?;
+    Node::create(&state.pool, request, user.id, graph_info.graph_id)
+        .await
+        .map_err(|e| match e {
+            CreateNodeError::ValidationError(errors) => {
+                let mut validation_errors = ValidationErrors::new();
+                for error in errors {
+                    match error {
+                        AttributeValidationError::MissingAttribute { name } => {
+                            let mut val_error = ValidationError::new("missing");
+                            val_error.message = Some("required".into());
+                            // Convert the dynamic field name into a &'static str.
+                            validation_errors.add(Box::leak(name.into_boxed_str()), val_error);
+                        }
+                        AttributeValidationError::WrongType { name, expected } => {
+                            let mut val_error = ValidationError::new("wrong_type");
+                            val_error.message =
+                                Some(format!("must be of type {}", expected).into());
+                            validation_errors.add(Box::leak(name.into_boxed_str()), val_error);
+                        }
+                    }
+                }
+                ApiError::Validation(validation_errors)
+            }
+            CreateNodeError::DatabaseError(_) => {
+                error!("Database error when creating node: {}", e);
+                ApiError::InternalServerError
+            }
+        })?;
 
     Ok(Json(json!({})))
 }
